@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数据清洗</title>
+    <!-- Tailwind CSS (CDN for pure HTML) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js (CDN for pure HTML) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body class="min-h-screen bg-gray-50 text-gray-900 font-sans p-4 sm:p-8">
+    <div class="max-w-6xl mx-auto space-y-6">
+
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Left Panel: Step Progression -->
+        <aside class="lg:col-span-1 h-full">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 h-full flex flex-col">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500 mb-6 shrink-0">处理步骤</h2>
+            
+            <div class="space-y-6 flex-1" id="steps-container"></div>
+
+            <div class="mt-auto pt-8 flex flex-col gap-6 w-full">
+              <!-- Data Insights Panel -->
+              <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-3 shrink-0">
+                <div class="flex items-center gap-2 text-blue-800 font-medium pb-2 border-b border-blue-200/50">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg> 
+                  数据洞察总览
+                </div>
+                <div class="text-sm text-blue-900 space-y-2 h-[80px]" id="insights-container"></div>
+              </div>
+
+              <button id="start-test-btn" class="w-full shrink-0 flex justify-center items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <svg id="start-test-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span id="start-test-text">开始测试</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Right Panel: Chart / Table -->
+        <main class="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col min-h-[600px]">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </div>
+              <h2 class="text-lg font-semibold text-gray-900" id="chart-title">传感器综合数据趋势</h2>
+            </div>
+            
+            <div class="flex items-center gap-3">
+               <div id="chart-legend" class="hidden md:flex flex-wrap items-center gap-4 text-xs font-medium bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 shadow-sm mr-2"></div>
+               <div class="flex bg-gray-100 p-1 rounded-lg" id="view-mode-tabs"></div>
+            </div>
+          </div>
+
+          <div class="flex-1 w-full min-h-[500px] relative">
+             <div id="chart-container" class="absolute inset-0 transition-opacity duration-300 flex flex-col gap-4">
+                <div class="flex-1 w-full bg-white rounded-lg border border-gray-100 p-2 shadow-sm relative min-h-[140px]">
+                   <h3 class="absolute top-2 left-4 text-xs font-bold text-gray-500 z-10 flex items-center gap-2">
+                     <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                     水温 (°C)
+                   </h3>
+                   <div class="h-full pt-5"><canvas id="chart-temp"></canvas></div>
+                </div>
+                <div class="flex-1 w-full bg-white rounded-lg border border-gray-100 p-2 shadow-sm relative min-h-[140px]">
+                   <h3 class="absolute top-2 left-4 text-xs font-bold text-gray-500 z-10 flex items-center gap-2">
+                     <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                     溶氧 (mg/L)
+                   </h3>
+                   <div class="h-full pt-5"><canvas id="chart-do"></canvas></div>
+                </div>
+                <div class="flex-1 w-full bg-white rounded-lg border border-gray-100 p-2 shadow-sm relative min-h-[140px]">
+                   <h3 class="absolute top-2 left-4 text-xs font-bold text-gray-500 z-10 flex items-center gap-2">
+                     <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                     pH值
+                   </h3>
+                   <div class="h-full pt-5"><canvas id="chart-ph"></canvas></div>
+                </div>
+             </div>
+             
+             <div id="table-container" class="absolute inset-0 hidden border border-gray-200 rounded-xl bg-white transition-opacity duration-300 overflow-hidden flex flex-col">
+                <div class="flex-1 overflow-y-auto">
+                   <table class="w-full text-sm text-left relative">
+                      <thead class="sticky top-0 bg-gray-50 text-gray-500 shadow-sm z-10" id="table-head"></thead>
+                      <tbody class="divide-y divide-gray-100" id="table-body"></tbody>
+                   </table>
+                </div>
+             </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    
+    <script>
+      // --- Global Icons ---
+      const ICONS = {
+        chartIcon: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`,
+        tableIcon: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>`
+      };
+
+      const METRICS = {
+        temp: { label: '水温', unit: '°C', color: '#f87171' },
+        do: { label: '溶氧', unit: 'mg/L', color: '#60a5fa' },
+        ph: { label: 'pH值', unit: '', color: '#22c55e' },
+      };
+
+      const STEPS = [
+        { id: 0, title: '① 原始数据', desc: '包含因设备抖动产生的异常值和网络造成的缺失片段。' },
+        { id: 1, title: '② 筛查异常 (3σ + IQR)', desc: '识别出明显的偏离数值（红色标注），确保对偏态和极端值稳健。' },
+        { id: 2, title: '③ 缺失插补 (线性)', desc: '利用序列连续性，对空缺与异常点所在时间刻进行线性插补（黄色标注）。' },
+        { id: 3, title: '④ 序列平滑', desc: '通过滑动平均滤波，消除微小噪点，还原真实环境的连续波动趋势。' }
+      ];
+
+      // --- Data Generation ---
+      const generateRawData = () => {
+        const data = [];
+        const baseT = 27.5;
+        const baseD = 6.5;
+        const baseP = 7.3;
+
+        const startHour = 14;
+        const startMinute = 30;
+
+        for (let i = 0; i < 40; i++) {
+          const hh = startHour.toString().padStart(2, '0');
+          const mm = startMinute.toString().padStart(2, '0');
+          const ss = i.toString().padStart(2, '0');
+          const time = `${hh}:${mm}:${ss}`;
+          
+          let temp = +(baseT + Math.sin(i * 0.2) + (Math.random() * 0.4 - 0.2)).toFixed(2);
+          let d = +(baseD + Math.sin(i * 0.1) * 0.5 + (Math.random() * 0.2 - 0.1)).toFixed(2);
+          let ph = +(baseP + Math.cos(i * 0.3) * 0.2 + (Math.random() * 0.1 - 0.05)).toFixed(2);
+
+          if (i === 6) temp = null; 
+          if (i === 15) temp = 12.3; 
+          if (i === 28) temp = 35.1; 
+          if (i === 34) temp = null; 
+
+          if (i === 12) d = 2.1; 
+          if (i === 19) d = null;
+          if (i === 20) d = null;
+          if (i === 35) d = 9.8; 
+
+          if (i === 8) ph = null;
+          if (i === 22) ph = 9.5;
+          if (i === 30) ph = 4.2;
+
+          data.push({ time, temp, do: d, ph });
+        }
+        return data;
+      };
+
+      // --- Processing Algorithms ---
+      function getBounds(values) {
+        const valid = values.filter((v) => v !== null && !isNaN(v));
+        if (valid.length === 0) return { mean: 0, std: 0, q1: 0, q3: 0, iqr: 0, lower: 0, upper: 0 };
+        
+        const mean = valid.reduce((a, b) => a + b, 0) / valid.length;
+        const std = Math.sqrt(valid.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / valid.length);
+        const sigmaLower = mean - 3 * std;
+        const sigmaUpper = mean + 3 * std;
+
+        const sorted = [...valid].sort((a, b) => a - b);
+        const q1 = sorted[Math.floor(sorted.length * 0.25)];
+        const q3 = sorted[Math.floor(sorted.length * 0.75)];
+        const iqr = q3 - q1;
+        const iqrLower = q1 - 1.5 * iqr;
+        const iqrUpper = q3 + 1.5 * iqr;
+
+        const lower = Math.max(sigmaLower, iqrLower);
+        const upper = Math.min(sigmaUpper, iqrUpper);
+
+        return { sigmaLower, sigmaUpper, iqrLower, iqrUpper, lower, upper };
+      }
+
+      function interpolate(arr) {
+        const result = [...arr];
+        for (let i = 0; i < result.length; i++) {
+          if (result[i] === null) {
+            let prevIdx = i - 1;
+            while (prevIdx >= 0 && result[prevIdx] === null) prevIdx--;
+            let nextIdx = i + 1;
+            while (nextIdx < result.length && result[nextIdx] === null) nextIdx++;
+
+            if (prevIdx >= 0 && nextIdx < result.length) {
+              const prevVal = result[prevIdx];
+              const nextVal = result[nextIdx];
+              const slope = (nextVal - prevVal) / (nextIdx - prevIdx);
+              result[i] = +(prevVal + slope * (i - prevIdx)).toFixed(2);
+            } else if (prevIdx >= 0) {
+              result[i] = result[prevIdx];
+            } else if (nextIdx < result.length) {
+              result[i] = result[nextIdx];
+            }
+          }
+        }
+        return result;
+      }
+
+      function smoothArray(arr, windowSize = 3) {
+        const result = [...arr];
+        const half = Math.floor(windowSize / 2);
+        for (let i = 0; i < arr.length; i++) {
+          if (i < half || i >= arr.length - half) continue;
+          let sum = 0;
+          for (let j = -half; j <= half; j++) sum += arr[i + j];
+          result[i] = +(sum / windowSize).toFixed(2);
+        }
+        return result;
+      }
+
+      // --- State Variables ---
+      const rawDataset = generateRawData();
+      let activeStep = 0;
+      let viewMode = 'chart';
+      let chartInstances = {};
+      let processedDataMap = {};
+      
+      let isPlaying = false;
+      let playInterval = null;
+
+      // --- Core Logic ---
+      function processMetric(metricKey) {
+        const rawValues = rawDataset.map(d => d[metricKey]);
+        const bounds = getBounds(rawValues);
+
+        const data = rawDataset.map(point => {
+          const val = point[metricKey];
+          const isMissingOriginal = val === null;
+          let isAnomaly = false;
+
+          if (val !== null && (val < bounds.lower || val > bounds.upper)) {
+            isAnomaly = true;
+          }
+
+          return {
+            time: point.time,
+            raw: val,
+            isMissingOriginal,
+            isAnomaly,
+            value: val,
+            isImputed: false,
+          };
+        });
+
+        if (activeStep >= 2) {
+          const valuesForImputation = data.map(d => (d.isAnomaly || d.isMissingOriginal) ? null : d.value);
+          const interpolated = interpolate(valuesForImputation);
+          
+          data.forEach((d, i) => {
+            d.value = interpolated[i];
+            if (d.isAnomaly || d.isMissingOriginal) {
+              d.isImputed = true;
+            }
+          });
+
+          if (activeStep >= 3) {
+            const smoothed = smoothArray(data.map(d => d.value));
+            data.forEach((d, i) => {
+              d.value = smoothed[i];
+            });
+          }
+        } else {
+           data.forEach(d => { d.value = d.raw; });
+        }
+
+        return { 
+          points: data, 
+          bounds, 
+          anomalyCount: data.filter(d => d.isAnomaly).length, 
+          missingCount: data.filter(d => d.isMissingOriginal).length 
+        };
+      }
+
+      function updateData() {
+        processedDataMap = {
+          temp: processMetric('temp'),
+          do: processMetric('do'),
+          ph: processMetric('ph')
+        };
+      }
+
+      function renderSteps() {
+        const container = document.getElementById('steps-container');
+        container.innerHTML = STEPS.map((step, idx) => {
+          const isActive = activeStep === step.id;
+          const isPast = activeStep > step.id;
+          return `
+            <div class="relative pl-6 cursor-pointer group ${isActive ? "opacity-100" : "opacity-60 hover:opacity-100 transition-opacity"}" data-id="${step.id}">
+              ${idx !== STEPS.length - 1 ? `<div class="absolute left-[9px] top-6 bottom-[-24px] w-0.5 ${isPast ? 'bg-blue-500' : 'bg-gray-200'} transition-colors"></div>` : ''}
+              <div class="absolute left-0 top-1.5 w-5 h-5 rounded-full border-2 bg-white z-10 transition-colors ${isActive ? 'border-blue-500 ring-4 ring-blue-50' : isPast ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}"></div>
+              <div class="py-1">
+                <h3 class="text-base font-semibold transition-colors ${isActive ? 'text-blue-600' : 'text-gray-800'}">${step.title}</h3>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        Array.from(container.children).forEach((el) => {
+          el.addEventListener('click', (e) => {
+            if (typeof stopPlay === 'function' && isPlaying) stopPlay();
+            activeStep = parseInt(e.currentTarget.dataset.id);
+            fullUpdate();
+          });
+        });
+      }
+
+      function renderInsights() {
+        const c = document.getElementById('insights-container');
+        let totalAnomalies = 0;
+        let totalMissing = 0;
+        
+        Object.keys(METRICS).forEach(m => {
+          totalAnomalies += processedDataMap[m].anomalyCount;
+          totalMissing += processedDataMap[m].missingCount;
+        });
+
+        let html = `
+          <div class="flex justify-between"><span>检测到异常点合计:</span><span class="font-bold text-red-600">${totalAnomalies} 个</span></div>
+          <div class="flex justify-between"><span>缺失值合计:</span><span class="font-bold text-yellow-600">${totalMissing} 个</span></div>
+          <div class="flex justify-between border-t border-blue-200/50 pt-2 mt-1 transition-opacity duration-300 ${activeStep >= 2 ? 'opacity-100' : 'opacity-0'}"><span>插补修复成功率:</span><span class="font-bold text-green-600">100%</span></div>
+        `;
+        c.innerHTML = html;
+      }
+
+      function renderHeaderAndLegend() {
+        const legend = document.getElementById('chart-legend');
+        if (viewMode === 'chart') {
+          legend.classList.remove('hidden');
+          legend.classList.add('md:flex');
+          let lhtml = `
+            <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-slate-500"></div>正常数据</div>
+            <div class="w-px h-4 bg-gray-300"></div>
+            <div class="flex items-center gap-1.5">
+              <div class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+              </div>检测出异常
+            </div>
+            <div class="w-px h-4 bg-gray-300"></div>
+            <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500"></div>智能插补</div>
+          `;
+          if (activeStep >= 2) {
+            lhtml += `<div class="w-px h-4 bg-gray-300"></div><div class="flex items-center gap-1.5 text-gray-400 border-b border-dashed border-gray-400">原始参照</div>`;
+          }
+          legend.innerHTML = lhtml;
+        } else {
+          legend.classList.add('hidden');
+          legend.classList.remove('md:flex');
+        }
+
+        const v = document.getElementById('view-mode-tabs');
+        v.innerHTML = `
+          <button class="p-1.5 rounded-md transition-all ${viewMode === 'chart' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}" data-mode="chart" title="图表视图">${ICONS.chartIcon}</button>
+          <button class="p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}" data-mode="table" title="详细数据表格">${ICONS.tableIcon}</button>
+        `;
+        v.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            viewMode = e.currentTarget.dataset.mode;
+            fullUpdate();
+          });
+        });
+
+        const chartC = document.getElementById('chart-container');
+        const tableC = document.getElementById('table-container');
+        if (viewMode === 'chart') {
+          chartC.classList.remove('hidden');
+          tableC.classList.add('hidden');
+        } else {
+          chartC.classList.add('hidden');
+          tableC.classList.remove('hidden');
+          tableC.classList.add('flex');
+        }
+      }
+
+      function renderTable() {
+        if (viewMode !== 'table') return;
+        
+        const thead = document.getElementById('table-head');
+        let th = `<tr><th class="px-4 py-3 font-medium bg-gray-50">采样时间</th>`;
+        Object.keys(METRICS).forEach(key => {
+           th += `<th class="px-4 py-3 font-medium bg-gray-50">${METRICS[key].label} ${METRICS[key].unit ? '('+METRICS[key].unit+')' : ''}</th>`;
+        });
+        th += `</tr>`;
+        thead.innerHTML = th;
+
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = rawDataset.map((rawPoint, i) => {
+          let rs = `<td class="px-4 py-2.5 font-mono text-gray-500">${rawPoint.time}</td>`;
+          
+          Object.keys(METRICS).forEach(key => {
+            const p = processedDataMap[key].points[i];
+            let cellHtml = '';
+
+            if (activeStep >= 2 && p.isImputed) {
+              cellHtml = `<span class="text-yellow-600 font-bold bg-yellow-50 px-1.5 py-0.5 rounded text-xs">${p.value}</span>`;
+            } else if (activeStep >= 3) {
+              cellHtml = `<span class="text-blue-600 font-medium">${p.value}</span>`;
+            } else if (p.raw === null) {
+              cellHtml = `<span class="text-gray-300 italic flex items-center gap-1.5 text-xs"><span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span> null</span>`;
+            } else if (activeStep >= 1 && p.isAnomaly) {
+              cellHtml = `<span class="text-red-500 font-bold bg-red-50 px-1.5 py-0.5 rounded text-xs">${p.raw}</span>`;
+            } else {
+              cellHtml = `<span class="text-gray-800">${p.value}</span>`;
+            }
+
+            rs += `<td class="px-4 py-2.5 font-mono">${cellHtml}</td>`;
+          });
+          
+          return `<tr class="hover:bg-gray-50 transition-colors">${rs}</tr>`;
+        }).join('');
+      }
+
+      function renderChart() {
+        if (viewMode !== 'chart') return;
+
+        Object.keys(METRICS).forEach(key => {
+          const domElement = document.getElementById(`chart-${key}`);
+          if (!domElement) return;
+          const ctx = domElement.getContext('2d');
+          
+          const data = processedDataMap[key];
+          const labels = data.points.map((p) => p.time);
+          const values = data.points.map((p) => p.value);
+          const rawValues = data.points.map((p) => p.raw);
+
+          const showBounds = activeStep === 1 && data.bounds.upper !== 0;
+          const showRawLine = activeStep >= 2;
+          
+          const primaryColor = METRICS[key].color;
+
+          const datasets = [
+            // Lower Bounds
+            {
+              label: 'Lower Bounds',
+              data: showBounds ? Array(40).fill(data.bounds.lower) : [],
+              borderColor: 'transparent',
+              backgroundColor: 'transparent',
+              pointRadius: 0,
+              fill: false,
+              animation: false,
+              order: 3
+            },
+            // Upper Bounds
+            {
+              label: 'Upper Bounds',
+              data: showBounds ? Array(40).fill(data.bounds.upper) : [],
+              borderColor: 'transparent',
+              backgroundColor: primaryColor + '20', // 20% opacity hex
+              pointRadius: 0,
+              fill: 0,
+              animation: false,
+              order: 4
+            },
+            // Raw Reference Line
+            {
+              label: '原始值参照',
+              data: showRawLine ? rawValues : [],
+              borderColor: '#cbd5e1',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              tension: 0.4,
+              spanGaps: false,
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              fill: false,
+              animation: false,
+              order: 2
+            },
+            // Main Data Line
+            {
+              label: '系统处理值',
+              data: values,
+              borderColor: primaryColor,
+              borderWidth: 2,
+              tension: 0.4,
+              spanGaps: activeStep >= 2 ? true : false,
+              fill: false,
+              order: 1,
+              pointBackgroundColor: (context) => {
+                const pt = data.points[context.dataIndex];
+                if (!pt) return 'white';
+                if (activeStep === 1 && pt.isAnomaly) return 'white';
+                if (activeStep >= 2 && pt.isImputed) return '#fef08a';
+                return 'white';
+              },
+              pointBorderColor: (context) => {
+                const pt = data.points[context.dataIndex];
+                if (!pt) return primaryColor;
+                if (activeStep === 1 && pt.isAnomaly) return '#ef4444';
+                if (activeStep >= 2 && pt.isImputed) return '#eab308';
+                return primaryColor;
+              },
+              pointBorderWidth: (context) => {
+                const pt = data.points[context.dataIndex];
+                if (!pt) return 1;
+                if (activeStep === 1 && pt.isAnomaly) return 2;
+                if (activeStep >= 2 && pt.isImputed) return 2;
+                return 1;
+              },
+              pointRadius: (context) => {
+                const pt = data.points[context.dataIndex];
+                if (!pt) return 2;
+                if (activeStep === 1 && pt.isAnomaly) return 4;
+                if (activeStep >= 2 && pt.isImputed) return 4.5;
+                return 2;
+              },
+              pointHoverRadius: 6
+            }
+          ];
+
+          if (chartInstances[key]) {
+            chartInstances[key].data.labels = labels;
+            chartInstances[key].data.datasets.forEach((dataset, i) => {
+              Object.assign(dataset, datasets[i]);
+            });
+            if (chartInstances[key].options.animation) {
+              chartInstances[key].options.animation.duration = 400;
+            }
+            chartInstances[key].update();
+          } else {
+            chartInstances[key] = new Chart(ctx, {
+              type: 'line',
+              data: { labels, datasets },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                  legend: { display: false },
+                  tooltip: {
+                    backgroundColor: 'white',
+                    titleColor: '#374151',
+                    bodyColor: '#4b5563',
+                    borderColor: '#e5e7eb',
+                    borderWidth: 1,
+                    padding: 8,
+                    bodyFont: { size: 12 },
+                    callbacks: {
+                      label: function(context) {
+                        if (['Lower Bounds', 'Upper Bounds'].includes(context.dataset.label || '')) {
+                          return '';
+                        }
+                        let label = context.dataset.label || '';
+                        if (label) label += ': ';
+                        if (context.parsed.y !== null) {
+                          label += context.parsed.y + ' ' + METRICS[key].unit;
+                        }
+                        return label;
+                      }
+                    }
+                  }
+                },
+                scales: {
+                  x: {
+                    grid: { display: false },
+                    ticks: { color: '#9ca3af', font: { size: 10 }, maxTicksLimit: 8 },
+                    border: { display: false }
+                  },
+                  y: {
+                    grid: { color: '#f3f4f6', tickLength: 0 },
+                    ticks: { color: '#9ca3af', font: { size: 10 }, padding: 6, maxTicksLimit: 5 },
+                    border: { display: false }
+                  }
+                },
+                animation: { duration: 0 }
+              }
+            });
+          }
+        });
+      }
+
+      function togglePlay() {
+        if (isPlaying) stopPlay();
+        else startPlay();
+      }
+
+      function startPlay() {
+        isPlaying = true;
+        activeStep = 0;
+        fullUpdate();
+        updatePlayButtonUI();
+        
+        playInterval = setInterval(() => {
+          if (activeStep < STEPS.length - 1) {
+            activeStep++;
+            fullUpdate();
+          } else {
+            stopPlay();
+          }
+        }, 1800); // Step every 1.8 seconds
+      }
+
+      function stopPlay() {
+        isPlaying = false;
+        clearInterval(playInterval);
+        updatePlayButtonUI();
+      }
+
+      function updatePlayButtonUI() {
+        const btnText = document.getElementById('start-test-text');
+        const btnIcon = document.getElementById('start-test-icon');
+        const btn = document.getElementById('start-test-btn');
+        if (isPlaying) {
+          btnText.innerText = '停止演示';
+          btnIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`;
+          btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+          btn.classList.add('bg-red-500', 'hover:bg-red-600');
+        } else {
+          btnText.innerText = '开始测试';
+          btnIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
+          btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+          btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        }
+      }
+
+      function fullUpdate() {
+        updateData();
+        renderSteps();
+        renderInsights();
+        renderHeaderAndLegend();
+        renderTable();
+        renderChart();
+      }
+
+      // --- Initialization ---
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('start-test-btn').addEventListener('click', togglePlay);
+        fullUpdate();
+      });
+    </script>
+  </body>
+</html>

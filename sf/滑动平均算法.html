@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>大闸蟹蜕壳风险预警模型</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    input[type=range] { accent-color: #2563eb; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto">
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <div class="lg:col-span-4 space-y-6">
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+          <h2 class="text-lg font-semibold mb-4 border-b pb-3 flex justify-between items-center">
+            实时预警判定
+            <span id="dateBadge" class="text-sm font-normal text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">-</span>
+          </h2>
+
+          <div class="space-y-3">
+            <div id="rule1" class="p-3 rounded-xl border flex items-center justify-between transition-colors bg-slate-50 border-slate-200">
+              <div>
+                <div class="font-semibold text-slate-800 text-sm">1. 进食趋势持续走低</div>
+                <div class="text-xs text-slate-500 mt-0.5">平滑值 <span id="valI">-</span> &lt; 阈值 60</div>
+              </div>
+              <div id="icon1" class="text-lg">❌</div>
+            </div>
+
+            <div id="rule2" class="p-3 rounded-xl border flex items-center justify-between transition-colors bg-slate-50 border-slate-200">
+              <div>
+                <div class="font-semibold text-slate-800 text-sm">2. 活跃趋势持续降低</div>
+                <div class="text-xs text-slate-500 mt-0.5">平滑值 <span id="valA">-</span> &lt; 阈值 60</div>
+              </div>
+              <div id="icon2" class="text-lg">❌</div>
+            </div>
+
+            <div id="rule3" class="p-3 rounded-xl border flex items-center justify-between transition-colors bg-slate-50 border-slate-200">
+              <div>
+                <div class="font-semibold text-slate-800 text-sm">3. 处于历史蜕壳期</div>
+                <div class="text-xs text-slate-500 mt-0.5">命中 8/20 - 8/29 窗口</div>
+              </div>
+              <div id="icon3" class="text-lg">❌</div>
+            </div>
+
+            <div id="rule4" class="p-3 rounded-xl border flex flex-col justify-between transition-colors bg-slate-50 border-slate-200">
+              <div class="flex justify-between items-center mb-1">
+                <div class="font-semibold text-slate-800 text-sm">4. 环境数据无异常</div>
+                <div id="icon4" class="text-lg">❌</div>
+              </div>
+              <div class="text-xs grid grid-cols-2 gap-1" id="envContainer">
+                </div>
+            </div>
+          </div>
+
+          <div id="finalBoard" class="mt-5 p-4 rounded-xl border-2 text-center transition-all duration-300">
+             <h3 id="finalTitle" class="font-bold text-lg">-</h3>
+             <p id="finalDesc" class="text-xs mt-1 font-medium">-</p>
+          </div>
+
+          <button id="playBtn" onclick="togglePlay()" class="w-full mt-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20">
+            ▶ 按日动态推演
+          </button>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 relative">
+          <button onclick="resetData()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-md transition-colors" title="重新生成数据">
+             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          </button>
+
+          <h3 class="font-bold text-slate-800 mb-3 text-sm flex items-center gap-2">
+             <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+             滑动平均时间窗
+          </h3>
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded text-xs">过去 <span id="maText">3</span> 天的均值</span>
+          </div>
+          <input type="range" min="1" max="7" value="3" oninput="updateMA(this.value)" class="w-full cursor-pointer mt-2">
+          <p class="text-[13px] text-slate-500 mt-4 leading-relaxed">
+            在右侧图表中：<br/>
+             <span class="inline-block w-4 h-1 bg-green-500 mr-1 mb-1"></span><strong>粗折线</strong> 代表经过滑动平均处理后的<strong>变化趋势</strong>。
+          </p>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col min-h-[500px]">
+        <div class="relative w-full flex-1 mt-2">
+           <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // System State
+    let rawData = [];
+    let processedData = [];
+    let maWindow = 3;
+    let currentIndex = 0;
+    let isPlaying = false;
+    let playTimer = null; // 用于存储 setTimeout
+    let chartInstance = null;
+    const THRESHOLD = 60;
+
+    // Generators
+    function generateData() {
+      const data = [];
+      const startDay = new Date(2024, 7, 15);
+      for(let i=0; i<20; i++) {
+        const d = new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate() + i);
+        const dateStr = `${d.getMonth()+1}/${d.getDate()}`;
+
+        let bI = 95, bA = 90;
+
+        // --- 修改后的核心逻辑：延长低值持续时间 ---
+        // 将影响范围从原来的 6-13 改为 5-17 天，延长预警覆盖面
+        if(i >= 5 && i <= 17) {
+          // 寻找第 9-13 天作为最底部（蜕壳高发期）
+          const center = 11;
+          const dist = Math.abs(center - i);
+
+          // 减缓降幅的计算，让它在低位徘徊更久
+          // 当 i 在 7-15 之间时，drop 会保持在较大值，使 maI 和 maA 持续低于 60
+          const drop = Math.max(0, 55 - dist * 6);
+          bI -= drop;
+          bA -= (drop + 10);
+        }
+
+        data.push({
+          date: dateStr,
+          // 将历史窗口拉长，与数据表现匹配 8/20 - 8/29
+          isMoltingWindow: (d.getMonth()===7 && d.getDate()>=20 && d.getDate()<=29),
+          rawIntake: Math.max(5, Math.round(bI + (Math.random()*20-10))),
+          rawActivity: Math.max(5, Math.round(bA + (Math.random()*20-10))),
+          envDO: +(6.8 + (Math.random()*0.4 - 0.2)).toFixed(1),
+          envPH: +(8.0 + (Math.random()*0.2 - 0.1)).toFixed(1),
+          envTemp: +(25.0 + (Math.random()*1.5 - 0.75)).toFixed(1),
+        });
+      }
+      return data;
+    }
+
+    function computeData() {
+      processedData = rawData.map((d, i) => {
+        let sumI = 0, sumA = 0, count = 0;
+        for(let j=0; j<maWindow; j++) {
+          if(i-j >= 0) {
+            sumI += rawData[i-j].rawIntake;
+            sumA += rawData[i-j].rawActivity;
+            count++;
+          }
+        }
+        const maI = Math.round(sumI / count);
+        const maA = Math.round(sumA / count);
+        const envNormal = d.envDO >= 5.0 && d.envPH >= 7.5 && d.envPH <= 8.5 && d.envTemp >= 20 && d.envTemp <= 28;
+
+        return {
+          ...d,
+          maIntake: maI,
+          maActivity: maA,
+          ruleI: maI < THRESHOLD,
+          ruleA: maA < THRESHOLD,
+          ruleM: d.isMoltingWindow,
+          ruleE: envNormal,
+          warning: (maI < THRESHOLD) && (maA < THRESHOLD) && d.isMoltingWindow && envNormal,
+          crisis: !envNormal
+        }
+      });
+    }
+
+    // UI Updates
+    function updateDOM() {
+      const p = processedData[currentIndex];
+      if(!p) return;
+
+      document.getElementById('dateBadge').innerText = `当前：${p.date}`;
+      document.getElementById('valI').innerText = p.maIntake;
+      document.getElementById('valA').innerText = p.maActivity;
+
+      // Env Text Styling
+      const colorTemp = (p.envTemp<20||p.envTemp>28) ? 'text-red-600 font-bold' : 'text-slate-500';
+      const colorDO = (p.envDO<5.0) ? 'text-red-600 font-bold' : 'text-slate-500';
+      const colorPH = (p.envPH<7.5||p.envPH>8.5) ? 'text-red-600 font-bold' : 'text-slate-500';
+      document.getElementById('envContainer').innerHTML = `
+        <span class="${colorTemp}">水温: ${p.envTemp}°C</span>
+        <span class="${colorDO}">溶氧: ${p.envDO}</span>
+        <span class="${colorPH}">pH: ${p.envPH}</span>
+      `;
+
+      // Helper for Rule Box styles
+      const setRule = (id, valid, activeClass) => {
+        const el = document.getElementById('rule'+id);
+        const icon = document.getElementById('icon'+id);
+        if(valid) {
+          el.className = `p-3 rounded-xl border flex items-center justify-between transition-colors ${activeClass}`;
+          icon.innerHTML = '✅';
+        } else {
+          el.className = 'p-3 rounded-xl border flex items-center justify-between transition-colors bg-slate-50 border-slate-200';
+          icon.innerHTML = '❌';
+        }
+      }
+
+      setRule(1, p.ruleI, 'bg-amber-50 border-amber-200');
+      setRule(2, p.ruleA, 'bg-amber-50 border-amber-200');
+      setRule(3, p.ruleM, 'bg-blue-50 border-blue-200');
+
+      const el4 = document.getElementById('rule4');
+      if(p.ruleE) {
+        el4.className = 'p-3 rounded-xl border flex flex-col justify-between transition-colors bg-green-50 border-green-200';
+        document.getElementById('icon4').innerHTML = '✅';
+      } else {
+        el4.className = 'p-3 rounded-xl border flex flex-col justify-between transition-colors bg-red-50 border-red-200';
+        document.getElementById('icon4').innerHTML = '⚠️';
+      }
+
+      // Final Board
+      const b = document.getElementById('finalBoard');
+      const t = document.getElementById('finalTitle');
+      const d = document.getElementById('finalDesc');
+
+      if(p.warning) {
+        b.className = 'mt-5 p-4 rounded-xl border-2 text-center transition-all bg-red-50 border-red-500 shadow-md scale-105';
+        t.innerHTML = '🚨 疑似进入蜕壳期';
+        t.className = 'font-bold text-lg text-red-700';
+        d.innerHTML = '指标复合成功！风险上升，请巡塘。';
+        d.className = 'text-xs mt-1 text-red-600 font-medium';
+      } else if (p.crisis) {
+        b.className = 'mt-5 p-4 rounded-xl border-2 text-center transition-all bg-orange-50 border-orange-400 shadow-md';
+        t.innerHTML = '⚠️ 水质环境异常';
+        t.className = 'font-bold text-lg text-orange-700';
+        d.innerHTML = '环境指标越界，需重点关注！';
+        d.className = 'text-xs mt-1 text-orange-600 font-medium';
+      } else {
+        b.className = 'mt-5 p-4 rounded-xl border-2 text-center transition-all bg-green-50 border-green-500/30';
+        t.innerHTML = '✅ 塘口状态平稳';
+        t.className = 'font-bold text-lg text-green-700';
+        d.innerHTML = '未达到蜕壳综合预警条件。';
+        d.className = 'text-xs mt-1 text-green-600 font-medium';
+      }
+    }
+
+    function renderChart() {
+      const ctx = document.getElementById('mainChart').getContext('2d');
+      if(chartInstance) chartInstance.destroy();
+
+      const labels = processedData.map(d => d.date);
+      const visibleData = processedData.map((d, i) => i <= currentIndex ? d : {});
+
+      // Custom Plugin to draw historical window background
+      const areaPlugin = {
+        id: 'historicalArea',
+        beforeDraw: (chart) => {
+          const {ctx, chartArea, scales} = chart;
+          if(!chartArea) return;
+          ctx.save();
+          ctx.fillStyle = 'rgba(254, 243, 199, 0.4)'; // amber-100
+
+          // 更新：8/20 是 index 5，8/29 是 index 14
+          const left = scales.x.getPixelForTick(5);
+          const right = scales.x.getPixelForTick(14);
+          ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+
+          // 绘制文字：放在黄色块内最上方
+          const yPos = chartArea.top + 24;
+          const px = left + (right - left) / 2;
+          const text = '📅 历史蜕壳日历窗';
+
+          ctx.font = 'bold 12px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const textWidth = ctx.measureText(text).width;
+
+          // 绘制半透明背景小标签
+          ctx.fillStyle = 'rgba(253, 230, 138, 0.8)'; // amber-200
+          if(ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(px - textWidth/2 - 8, yPos - 12, textWidth + 16, 24, 12);
+            ctx.fill();
+          } else {
+            ctx.fillRect(px - textWidth/2 - 8, yPos - 12, textWidth + 16, 24);
+          }
+
+          // 绘制文字内容
+          ctx.fillStyle = '#b45309'; // amber-700
+          ctx.fillText(text, px, yPos);
+          ctx.restore();
+        }
+      };
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              type: 'line', label: '进食连续趋势',
+              data: visibleData.map(d => d.maIntake),
+              borderColor: '#16a34a', borderWidth: 4, tension: 0.3, pointBackgroundColor: 'white', pointBorderWidth: 2, order: 1
+            },
+            {
+              type: 'line', label: '活跃连续趋势',
+              data: visibleData.map(d => d.maActivity),
+              borderColor: '#2563eb', borderWidth: 4, tension: 0.3, pointBackgroundColor: 'white', pointBorderWidth: 2, order: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          scales: {
+            y: { beginAtZero: true, max: 140, grid: { color: '#f8fafc' } },
+            x: { grid: { display: false } }
+          },
+          plugins: {
+            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } },
+            tooltip: { mode: 'index', intersect: false },
+            annotation: {
+              annotations: {
+                thresholdLine: {
+                  type: 'line',
+                  yMin: THRESHOLD,
+                  yMax: THRESHOLD,
+                  borderColor: 'rgba(251, 191, 36, 0.8)',
+                  borderWidth: 2,
+                  borderDash: [5, 5]
+                }
+              }
+            }
+          }
+        },
+        plugins: [areaPlugin]
+      });
+    }
+
+    // Handlers
+    function updateMA(val) {
+      maWindow = parseInt(val);
+      document.getElementById('maText').innerText = val;
+      computeData();
+      updateDOM();
+      renderChart();
+    }
+
+    // 控制播放的核心函数 (基于递归 setTimeout 以实现变速)
+    function executeNextStep() {
+      if (!isPlaying) return;
+
+      const p = processedData[currentIndex];
+      const btn = document.getElementById('playBtn');
+
+      // ==== 核心变速逻辑 ====
+      // 默认较快：500毫秒；进入重点蜕壳窗（ruleM为true）：放慢至 1500毫秒
+      let currentDelay = 600;
+      if (p && p.ruleM) {
+        currentDelay = 1800;
+      }
+
+      playTimer = setTimeout(() => {
+        if (!isPlaying) return;
+
+        if (currentIndex >= 19) {
+          togglePlay(); // 到达结尾，停止播放
+          return;
+        }
+
+        currentIndex++;
+        updateDOM();
+        renderChart();
+
+        // 根据下一天的状态更新按钮文字
+        const nextP = processedData[currentIndex];
+        if (nextP && nextP.ruleM) {
+          btn.innerHTML = '⏸ 重点监测窗 (慢速推演...)';
+        } else {
+          btn.innerHTML = '⏸ 暂停推演';
+        }
+
+        // 递归调度下一帧
+        executeNextStep();
+      }, currentDelay);
+    }
+
+    function togglePlay() {
+      const btn = document.getElementById('playBtn');
+
+      // 如果进度已经到底了，再次点击时自动重置回第1天
+      if (currentIndex >= 19 && !isPlaying) {
+         currentIndex = 0;
+         updateDOM();
+         renderChart();
+      }
+
+      isPlaying = !isPlaying;
+
+      if (isPlaying) {
+        btn.className = 'w-full mt-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors bg-slate-800 text-white shadow-xl';
+
+        // 初始启动时根据当天的状态设置文字
+        const p = processedData[currentIndex];
+        if (p && p.ruleM) {
+          btn.innerHTML = '⏸ 重点监测窗 (慢速推演...)';
+        } else {
+          btn.innerHTML = '⏸ 暂停推演';
+        }
+
+        executeNextStep();
+      } else {
+        btn.innerHTML = '▶ 按日动态推演';
+        btn.className = 'w-full mt-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20';
+        clearTimeout(playTimer);
+      }
+    }
+
+    function resetData() {
+      if(isPlaying) togglePlay();
+      clearTimeout(playTimer); // 确保重置时清理定时器
+      rawData = generateData();
+      currentIndex = 0;
+      computeData();
+      updateDOM();
+      renderChart();
+    }
+
+    // Init
+    window.onload = resetData;
+  </script>
+</body>
+</html>

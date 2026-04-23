@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大闸蟹智能投喂模型</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .edge { transition: stroke 0.3s ease, stroke-width 0.3s ease; }
+        .node-rect { transition: fill 0.3s ease, stroke 0.3s ease, stroke-width 0.3s ease; }
+        .node-text { transition: fill 0.3s ease, font-weight 0.3s ease; }
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans p-6 md:p-12 overflow-x-hidden min-h-screen">
+
+<div class="max-w-7xl mx-auto space-y-12">
+    <header class="space-y-4 text-center mb-8">
+    </header>
+
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <div class="xl:col-span-3 space-y-6">
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden h-full">
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-400"></div>
+                <h2 class="text-xl font-semibold text-slate-800 flex items-center gap-2 mb-6">
+                    <i data-lucide="settings" class="text-cyan-500 w-5 h-5"></i> 交互控制台
+                </h2>
+                <div class="space-y-8">
+                    <div>
+                        <h3 class="text-xs font-medium text-slate-400 mb-4 tracking-wider uppercase">环境特征探测器</h3>
+
+                        <div class="mb-4 group text-sm" style="color: #3b82f6;">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-slate-500 flex items-center gap-1.5 transition-colors group-hover:text-slate-700">
+                                    <span class="p-1 rounded bg-slate-100 text-blue-500"><i data-lucide="thermometer" class="w-3.5 h-3.5"></i></span>
+                                    水温 (°C)
+                                </label>
+                                <span id="val_temp" class="text-xs font-mono font-medium px-2 py-0.5 rounded border border-slate-200 bg-slate-50 transition-colors text-blue-500">24</span>
+                            </div>
+                            <input type="range" id="temp" min="10" max="35" step="0.5" value="24" class="text-blue-500" oninput="updateValues()">
+                        </div>
+
+                        <div class="mb-4 group text-sm" style="color: #06b6d4;">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-slate-500 flex items-center gap-1.5 transition-colors group-hover:text-slate-700">
+                                    <span class="p-1 rounded bg-slate-100 text-cyan-500"><i data-lucide="droplets" class="w-3.5 h-3.5"></i></span>
+                                    pH值
+                                </label>
+                                <span id="val_ph" class="text-xs font-mono font-medium px-2 py-0.5 rounded border border-slate-200 bg-slate-50 transition-colors text-cyan-500">7.5</span>
+                            </div>
+                            <input type="range" id="ph" min="5" max="10" step="0.1" value="7.5" class="text-cyan-500" oninput="updateValues()">
+                        </div>
+
+                        <div class="mb-4 group text-sm" style="color: #14b8a6;">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-slate-500 flex items-center gap-1.5 transition-colors group-hover:text-slate-700">
+                                    <span class="p-1 rounded bg-slate-100 text-teal-500"><i data-lucide="activity" class="w-3.5 h-3.5"></i></span>
+                                    溶氧量 (mg/L)
+                                </label>
+                                <span id="val_do" class="text-xs font-mono font-medium px-2 py-0.5 rounded border border-slate-200 bg-slate-50 transition-colors text-teal-500">6.5</span>
+                            </div>
+                            <input type="range" id="doValue" min="2" max="12" step="0.1" value="6.5" class="text-teal-500" oninput="updateValues()">
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-medium text-slate-400 mb-4 tracking-wider uppercase">行为视觉提取模块</h3>
+
+                        <div class="mb-4 group text-sm" style="color: #f97316;">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-slate-500 flex items-center gap-1.5 transition-colors group-hover:text-slate-700">
+                                    <span class="p-1 rounded bg-slate-100 text-orange-500"><i data-lucide="percent" class="w-3.5 h-3.5"></i></span>
+                                    残饵量 (%)
+                                </label>
+                                <span id="val_leftover" class="text-xs font-mono font-medium px-2 py-0.5 rounded border border-slate-200 bg-slate-50 transition-colors text-orange-500">15</span>
+                            </div>
+                            <input type="range" id="leftover" min="0" max="100" step="1" value="15" class="text-orange-500" oninput="updateValues()">
+                        </div>
+
+                        <div class="mb-4 group text-sm" style="color: #10b981;">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-slate-500 flex items-center gap-1.5 transition-colors group-hover:text-slate-700">
+                                    <span class="p-1 rounded bg-slate-100 text-emerald-500"><i data-lucide="fish" class="w-3.5 h-3.5"></i></span>
+                                    平均活跃度 (0-10)
+                                </label>
+                                <span id="val_activity" class="text-xs font-mono font-medium px-2 py-0.5 rounded border border-slate-200 bg-slate-50 transition-colors text-emerald-500">8</span>
+                            </div>
+                            <input type="range" id="activity" min="0" max="10" step="1" value="8" class="text-emerald-500" oninput="updateValues()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="xl:col-span-9 bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm relative">
+            <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 to-green-400"></div>
+
+            <h2 class="text-2xl font-semibold text-slate-800 flex items-center gap-2 mb-8 border-b border-slate-100 pb-4">
+                <i data-lucide="git-branch" class="text-emerald-500 w-6 h-6"></i> 森林内部全景 (The Forest Ensemble)
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10" id="trees-container">
+               </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                <div class="absolute inset-x-0 -bottom-24 h-48 bg-emerald-500/10 blur-3xl rounded-full pointer-events-none"></div>
+
+                <div class="flex-1">
+                    <h3 class="text-lg font-medium text-slate-800 mb-2">集成平均 (Ensemble Averaging)</h3>
+                    <p class="text-slate-500 text-sm leading-relaxed">
+                        每棵树因为只能看到“部分特征”，做出的决策都是“偏科”的弱分类器。将所有树走到最终叶子节点的值取平均，就是随机森林防止单点过拟合、提升鲁棒性的终极原理！
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-2 border-l border-slate-200 pl-8 z-10 w-full md:w-auto justify-center">
+                    <div class="text-center w-36 shrink-0">
+                        <div id="tree_sum_text" class="text-emerald-600 font-mono text-sm mb-1 whitespace-nowrap">0 + 0 + 0</div>
+                        <div class="text-slate-300 text-xs">━━━━━━━━━━━━━━</div>
+                        <div class="text-slate-400 font-mono text-xs mt-1">3 Trees</div>
+                    </div>
+                    <div class="text-slate-400 font-bold text-2xl w-6 text-center shrink-0">=</div>
+                    <div class="flex items-baseline justify-start gap-1 w-36 shrink-0">
+                        <div id="final_pred" class="text-5xl font-bold font-mono tracking-tighter text-slate-800 text-right w-24 shrink-0" style="transition: transform 0.2s, color 0.2s;">
+                            0
+                        </div>
+                        <span class="text-emerald-600 font-medium">g/m²</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 【修改点】增加断网安全检测：如果加载不到外部的lucide图标库，直接跳过，不阻断后续树的生成
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+
+    const t1Nodes = [
+        { id: 0, text: "水温≥20℃", x: 150, y: 20 },
+        { id: 1, text: "pH在6.5~8.5", x: 75, y: 75 },
+        { id: 2, text: "pH在6.5~8.5", x: 225, y: 75 },
+        { id: 3, text: "120g", x: 37, y: 130, isLeaf: true },
+        { id: 4, text: "60g", x: 113, y: 130, isLeaf: true },
+        { id: 5, text: "70g", x: 187, y: 130, isLeaf: true },
+        { id: 6, text: "30g", x: 263, y: 130, isLeaf: true }
+    ];
+
+    const t2Nodes = [
+        { id: 0, text: "溶氧≥6.0", x: 150, y: 20 },
+        { id: 1, text: "残饵≤20%", x: 75, y: 75 },
+        { id: 2, text: "残饵≤10%", x: 225, y: 75 },
+        { id: 3, text: "120g", x: 37, y: 130, isLeaf: true },
+        { id: 4, text: "50g", x: 113, y: 130, isLeaf: true },
+        { id: 5, text: "40g", x: 187, y: 130, isLeaf: true },
+        { id: 6, text: "0g", x: 263, y: 130, isLeaf: true }
+    ];
+
+    const t3Nodes = [
+        { id: 0, text: "残饵≤15%", x: 150, y: 20 },
+        { id: 1, text: "活跃≥6", x: 75, y: 75 },
+        { id: 2, text: "活跃<4", x: 225, y: 75 },
+        { id: 3, text: "150g", x: 37, y: 130, isLeaf: true },
+        { id: 4, text: "80g", x: 113, y: 130, isLeaf: true },
+        { id: 5, text: "0g", x: 187, y: 130, isLeaf: true },
+        { id: 6, text: "40g", x: 263, y: 130, isLeaf: true }
+    ];
+
+    function createTreeSVG(tid, nodes) {
+        const edges = [
+            { from: 0, to: 1, id: `e${tid}-0-1` },
+            { from: 0, to: 2, id: `e${tid}-0-2` },
+            { from: 1, to: 3, id: `e${tid}-1-3` },
+            { from: 1, to: 4, id: `e${tid}-1-4` },
+            { from: 2, to: 5, id: `e${tid}-2-5` },
+            { from: 2, to: 6, id: `e${tid}-2-6` },
+        ];
+
+        let edgeHTML = edges.map(e => {
+            const n1 = nodes[e.from];
+            const n2 = nodes[e.to];
+            return `<line id="${e.id}" x1="${n1.x}" y1="${n1.y}" x2="${n2.x}" y2="${n2.y}" stroke="#cbd5e1" stroke-width="1.5" class="edge" />`;
+        }).join('');
+
+        let nodeHTML = nodes.map(n => {
+            const w = n.isLeaf ? 46 : 66;
+            const h = n.isLeaf ? 24 : 26;
+            return `
+            <g transform="translate(${n.x - w/2}, ${n.y - h/2})">
+                <rect id="n${tid}-${n.id}" width="${w}" height="${h}" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" class="node-rect" />
+                <text id="t${tid}-${n.id}" x="${w/2}" y="${h/2 + 3}" text-anchor="middle" font-size="10" fill="#64748b" class="node-text">${n.text}</text>
+            </g>
+            `;
+        }).join('');
+
+        return `
+        <svg viewBox="0 0 300 160" class="w-full h-full absolute inset-0 overflow-visible">
+            ${edgeHTML}
+            ${nodeHTML}
+        </svg>
+        `;
+    }
+
+    const treesContainer = document.getElementById('trees-container');
+    const treesConfig = [
+        { id: 1, name: "决策树 #1", msg: "随机分配特征：[水温, pH值]", nodes: t1Nodes },
+        { id: 2, name: "决策树 #2", msg: "随机分配特征：[残饵, 溶氧]", nodes: t2Nodes },
+        { id: 3, name: "决策树 #3", msg: "进食意愿专家：[残饵, 活跃]", nodes: t3Nodes }
+    ];
+
+    treesConfig.forEach(t => {
+        const div = document.createElement('div');
+        div.className = "bg-white border border-slate-200 rounded-xl p-4 flex flex-col relative shadow-sm";
+        div.innerHTML = `
+            <div class="text-center mb-4">
+                <h3 class="text-slate-800 font-medium text-sm">${t.name}</h3>
+                <p class="text-[10px] text-emerald-600 mt-1 uppercase tracking-wider">${t.msg}</p>
+            </div>
+            <div class="relative w-full aspect-[300/170] flex-1">
+                ${createTreeSVG(t.id, t.nodes)}
+            </div>
+        `;
+        treesContainer.appendChild(div);
+    });
+
+    function updateTreeState(tid, activeNodes, activeEdges) {
+        for(let i=0; i<7; i++) {
+            const rect = document.getElementById(`n${tid}-${i}`);
+            const text = document.getElementById(`t${tid}-${i}`);
+            if(rect) {
+                rect.setAttribute('fill', '#ffffff');
+                rect.setAttribute('stroke', '#cbd5e1');
+                rect.setAttribute('stroke-width', '1');
+            }
+            if(text) {
+                text.setAttribute('fill', '#64748b');
+                text.setAttribute('font-weight', 'normal');
+            }
+        }
+
+        ['0-1', '0-2', '1-3', '1-4', '2-5', '2-6'].forEach(edge => {
+            const el = document.getElementById(`e${tid}-${edge}`);
+            if(el) {
+                el.setAttribute('stroke', '#cbd5e1');
+                el.setAttribute('stroke-width', '1.5');
+            }
+        });
+
+        activeEdges.forEach(edge => {
+            const el = document.getElementById(`e${tid}-${edge}`);
+            if(el) {
+                el.setAttribute('stroke', '#10b981');
+                el.setAttribute('stroke-width', '3');
+            }
+        });
+
+        activeNodes.forEach(nodeId => {
+            const rect = document.getElementById(`n${tid}-${nodeId}`);
+            const text = document.getElementById(`t${tid}-${nodeId}`);
+            const isLeaf = [3,4,5,6].includes(nodeId);
+            if(rect) {
+                rect.setAttribute('fill', isLeaf ? '#10b981' : '#ffffff');
+                rect.setAttribute('stroke', isLeaf ? '#059669' : '#10b981');
+                rect.setAttribute('stroke-width', '2');
+            }
+            if(text) {
+                text.setAttribute('fill', isLeaf ? '#ffffff' : '#059669');
+                text.setAttribute('font-weight', '600');
+            }
+        });
+    }
+
+    let lastFinal = 0;
+
+    function updateValues() {
+        const temp = parseFloat(document.getElementById('temp').value);
+        const ph = parseFloat(document.getElementById('ph').value);
+        const doValue = parseFloat(document.getElementById('doValue').value);
+        const leftover = parseFloat(document.getElementById('leftover').value);
+        const activity = parseFloat(document.getElementById('activity').value);
+
+        document.getElementById('val_temp').innerText = temp;
+        document.getElementById('val_ph').innerText = ph;
+        document.getElementById('val_do').innerText = doValue;
+        document.getElementById('val_leftover').innerText = leftover;
+        document.getElementById('val_activity').innerText = activity;
+
+        // T1
+        let a1 = [0], e1 = [], r1 = 0;
+        if (temp >= 20) {
+            e1.push('0-1'); a1.push(1);
+            if (ph >= 6.5 && ph <= 8.5) { e1.push('1-3'); a1.push(3); r1 = 120; }
+            else { e1.push('1-4'); a1.push(4); r1 = 60; }
+        } else {
+            e1.push('0-2'); a1.push(2);
+            if (ph >= 6.5 && ph <= 8.5) { e1.push('2-5'); a1.push(5); r1 = 70; }
+            else { e1.push('2-6'); a1.push(6); r1 = 30; }
+        }
+        updateTreeState(1, a1, e1);
+
+        // T2
+        let a2 = [0], e2 = [], r2 = 0;
+        if (doValue >= 6.0) {
+            e2.push('0-1'); a2.push(1);
+            if (leftover <= 20) { e2.push('1-3'); a2.push(3); r2 = 120; }
+            else { e2.push('1-4'); a2.push(4); r2 = 50; }
+        } else {
+            e2.push('0-2'); a2.push(2);
+            if (leftover <= 10) { e2.push('2-5'); a2.push(5); r2 = 40; }
+            else { e2.push('2-6'); a2.push(6); r2 = 0; }
+        }
+        updateTreeState(2, a2, e2);
+
+        // T3
+        let a3 = [0], e3 = [], r3 = 0;
+        if (leftover <= 15) {
+            e3.push('0-1'); a3.push(1);
+            if (activity >= 6) { e3.push('1-3'); a3.push(3); r3 = 150; }
+            else { e3.push('1-4'); a3.push(4); r3 = 80; }
+        } else {
+            e3.push('0-2'); a3.push(2);
+            if (activity < 4) { e3.push('2-5'); a3.push(5); r3 = 0; }
+            else { e3.push('2-6'); a3.push(6); r3 = 40; }
+        }
+        updateTreeState(3, a3, e3);
+
+        document.getElementById('tree_sum_text').innerText = `${r1} + ${r2} + ${r3}`;
+        const finalPrediction = Math.round((r1 + r2 + r3) / 3);
+
+        const finalEl = document.getElementById('final_pred');
+        finalEl.innerText = finalPrediction;
+
+        if(finalPrediction !== lastFinal) {
+            finalEl.style.transform = 'scale(1.2)';
+            finalEl.style.color = '#10b981';
+            setTimeout(() => {
+                finalEl.style.transform = 'scale(1)';
+                finalEl.style.color = '#1e293b';
+            }, 200);
+            lastFinal = finalPrediction;
+        }
+    }
+
+    updateValues();
+</script>
+
+</body>
+</html>

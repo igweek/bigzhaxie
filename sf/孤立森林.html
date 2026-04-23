@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水质预警：孤立森林（Isolation Forest）直观演示</title>
+    <style>
+        :root {
+            --bg: #F1F5F9;
+            --primary: #3B82F6;
+            --text-main: #1E293B;
+            --text-sub: #64748B;
+            --anomaly: #EF4444;
+            --normal: #22C55E;
+            --panel-bg: #FFFFFF;
+            --border: #E2E8F0;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px;
+            box-sizing: border-box;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            gap: 24px;
+            height: 100vh;
+            background: var(--bg);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        #left-panel {
+            width: 400px;
+            padding: 24px;
+            box-sizing: border-box;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        #right-panel {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        #right-panel::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px);
+            background-size: 20px 20px;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        #right-panel > div {
+            z-index: 1;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 24px 32px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            line-height: 1.5;
+            font-weight: bold;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+        }
+
+        p {
+            color: var(--text-sub);
+            line-height: 1.6;
+            font-size: 0.875rem;
+        }
+
+        .highlight-text {
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        .step {
+            background: var(--bg);
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 0.875rem;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
+        }
+
+        .stats-box {
+            margin-top: 24px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+
+        .stats-box.active {
+            border-color: var(--primary);
+            background: #EFF6FF;
+        }
+
+        .stats-box.result-anomaly {
+            border-color: #FCA5A5;
+            background: #FEF2F2;
+        }
+
+        .stats-box.result-normal {
+            border-color: #86EFAC;
+            background: #F0FDF4;
+        }
+
+        #cutCountLabel {
+            font-size: 2rem;
+            margin: 0;
+            font-family: monospace;
+            font-weight: 300;
+            color: var(--text-main);
+        }
+
+        #msg {
+            margin-top: 10px;
+            font-size: 0.875rem;
+            min-height: 48px;
+            color: var(--text-sub);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        button {
+            flex: 1;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: bold;
+            transition: all 0.15s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
+        }
+
+        button:disabled {
+            background: #E2E8F0;
+            color: #94A3B8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        button.secondary {
+            background: var(--panel-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+        button.secondary:hover:not(:disabled) {
+            background: var(--bg);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        canvas {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: crosshair;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: bold;
+            color: var(--text-sub);
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px;}
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.anomaly { background: var(--anomaly); box-shadow: 0 0 4px rgba(239,68,68,0.5); }
+        .dot.normal { background: var(--normal); }
+
+        .param-badge {
+            display: inline-flex;
+            align-items: center;
+            font-family: monospace;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #F1F5F9;
+            border: 1px solid #E2E8F0;
+            color: #475569;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="left-panel">
+        <h1>孤立森林原理解析</h1>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+            <span class="param-badge">🌲 n_estimators = 100</span>
+            <span class="param-badge" style="background: #FEF2F2; color: #EF4444; border-color: #FECACA;">⚠️ contamination = 0.05</span>
+        </div>
+
+        <p>
+           聚集在一起的绿色点，是根据历史数据训练出来的正常范围。异常点因为本身就偏离正常范围，通常几次切分就能被分离出来；而正常点由于分布更密集，需要更多次切分才能被单独分开
+        </p>
+
+        <div class="step">
+            操作：在右侧散点图中点击选取任意数据点作为切分目标。
+        </div>
+
+        <div id="statsBox" class="stats-box">
+            <h2 id="cutCountLabel">切分深度: 0</h2>
+            <p id="msg">等待选择目标点</p>
+        </div>
+
+        <div class="btn-group">
+            <button id="btnStart" onclick="startCutting()" disabled>开始随机切分</button>
+            <button id="btnReset" onclick="resetSim()" class="secondary">重置数据</button>
+        </div>
+
+        <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 24px;">
+            <p class="highlight-text" style="margin-bottom: 8px;">动态演练：0.05 污染率触发机制</p>
+            <p style="font-size: 0.8rem; margin-top: 0; color: var(--text-sub);">当实时分数突破 95分（即进入排名前 5% 的异常污染区间）时，系统立刻在恶化初期拦截并触发警报。</p>
+
+            <div style="display:flex; justify-content: space-between; align-items: flex-end; margin-top: 16px;">
+                <div id="liveStatus" style="font-size: 0.85rem; font-weight: bold; color: var(--text-sub);">当前状态: 等待演示</div>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.7rem; color: var(--text-sub); display: block;">实时异常分数</span>
+                    <span id="liveScore" style="font-size: 1.25rem; font-weight: bold; font-family: monospace; color: var(--text-main);">0.00</span>
+                </div>
+            </div>
+
+            <div style="display: flex; height: 10px; background: #E2E8F0; border-radius: 5px; overflow: hidden; margin: 10px 0; position: relative;">
+                <div style="width: 75%; border-right: 2px solid white; background: var(--normal); opacity: 0.2;"></div>
+                <div style="width: 20%; border-right: 2px solid #EF4444; background: #EAB308; opacity: 0.2;"></div>
+                <div style="width: 5%; background: var(--anomaly); opacity: 0.3;"></div>
+
+                <div style="position: absolute; left: 95%; top: -2px; bottom: -2px; width: 2px; background: #EF4444; z-index: 5;"></div>
+
+                <div id="scoreBar" style="position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--primary); transition: width 0.1s linear;"></div>
+            </div>
+
+            <button id="btnLive" onclick="startLiveSim()" style="margin-top: 12px; width: 100%; background: #1E293B;">模拟水质缓慢恶化</button>
+        </div>
+    </div>
+
+    <div id="right-panel">
+        <div>
+            <div class="legend">
+                <div class="legend-item"><div class="dot normal"></div>正常数据 (水质稳定)</div>
+                <div class="legend-item"><div class="dot anomaly"></div>异常数据 (传感器偏离)</div>
+            </div>
+            <canvas id="canvas" width="600" height="600"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = 600 * dpr;
+        canvas.height = 600 * dpr;
+        ctx.scale(dpr, dpr);
+        canvas.style.width = '600px';
+        canvas.style.height = '600px';
+
+        let points = [];
+        let targetPoint = null;
+        let bounds = { minX: 0, maxX: 600, minY: 0, maxY: 600 };
+        let cuts = [];
+        let myInterval = null;
+        let cutCount = 0;
+
+        let driftPoint = null;
+        let driftTimer = null;
+        let driftTrail = [];
+        let warningPoint = null;
+        let severePoint = null;
+
+        // 【修改点】：树的默认数量调整为 100，与 Python 模型对齐
+        function simulateCutsForPoint(px, py, numTrees = 100) {
+            let totalCuts = 0;
+            for(let i=0; i<numTrees; i++) {
+                let bounds = { minX: 0, maxX: 600, minY: 0, maxY: 600 };
+                let cuts = 0;
+                let currentPts = points;
+
+                while(true) {
+                    let ptsInBounds = [];
+                    for(let j=0; j<currentPts.length; j++) {
+                        let p = currentPts[j];
+                        if (p.x >= bounds.minX && p.x <= bounds.maxX && p.y >= bounds.minY && p.y <= bounds.maxY) {
+                            ptsInBounds.push(p);
+                        }
+                    }
+                    currentPts = ptsInBounds;
+                    if (currentPts.length === 0) break;
+
+                    let axis = Math.random() < 0.5 ? 'x' : 'y';
+                    let vals = currentPts.map(p => p[axis]);
+                    vals.push(axis === 'x' ? px : py);
+                    let minVal = Math.min(...vals);
+                    let maxVal = Math.max(...vals);
+
+                    if (maxVal - minVal < 1e-4) {
+                        axis = axis === 'x' ? 'y' : 'x';
+                        vals = currentPts.map(p => p[axis]);
+                        vals.push(axis === 'x' ? px : py);
+                        minVal = Math.min(...vals);
+                        maxVal = Math.max(...vals);
+                    }
+                    if (maxVal - minVal < 1e-4) break;
+
+                    let split = minVal + Math.random() * (maxVal - minVal);
+                    if (axis === 'x') {
+                        if (px < split) bounds.maxX = split;
+                        else bounds.minX = split;
+                    } else {
+                        if (py < split) bounds.maxY = split;
+                        else bounds.minY = split;
+                    }
+                    cuts++;
+                    if(cuts > 30) break;
+                }
+                totalCuts += cuts;
+            }
+            return totalCuts / numTrees;
+        }
+
+        function initData() {
+            points = [];
+            for(let i = 0; i < 200; i++) {
+                let u1 = Math.random(), u2 = Math.random();
+                let z0 = Math.sqrt(-2.0 * Math.log(u1 || 1e-10)) * Math.cos(2.0 * Math.PI * u2);
+                let z1 = Math.sqrt(-2.0 * Math.log(u1 || 1e-10)) * Math.sin(2.0 * Math.PI * u2);
+                points.push({ x: 300 + z0 * 35, y: 300 + z1 * 35, type: 'normal' });
+            }
+            points.push({x: 100, y: 150, type: 'anomaly', label: '低pH，高溶氧'});
+            points.push({x: 520, y: 120, type: 'anomaly', label: '高pH，高溶氧'});
+            points.push({x: 150, y: 500, type: 'anomaly', label: '低pH，低溶氧'});
+            points.push({x: 550, y: 480, type: 'anomaly', label: '高pH，低溶氧'});
+            points.push({x: 250, y: 60, type: 'anomaly'});
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, 600, 600);
+            ctx.fillStyle = 'rgba(0,0,0,0.04)';
+            ctx.fillRect(0, 0, 600, 600);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 2;
+            cuts.forEach(c => {
+                ctx.beginPath();
+                ctx.moveTo(c.x1, c.y1);
+                ctx.lineTo(c.x2, c.y2);
+                ctx.stroke();
+            });
+
+            points.forEach(p => {
+                let inBounds = p.x >= bounds.minX && p.x <= bounds.maxX && p.y >= bounds.minY && p.y <= bounds.maxY;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, targetPoint === p ? 6 : 4, 0, Math.PI * 2);
+
+                if (p.type === 'normal') {
+                    ctx.fillStyle = inBounds ? '#22c55e' : 'rgba(34, 197, 94, 0.2)';
+                } else {
+                    ctx.fillStyle = inBounds ? '#ef4444' : 'rgba(239, 68, 68, 0.2)';
+                }
+                ctx.fill();
+
+                if (targetPoint === p) {
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
+                    ctx.strokeStyle = inBounds ? '#0ea5e9' : 'rgba(14, 165, 233, 0.3)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+            });
+
+            if (driftTrail.length > 0) {
+                ctx.lineWidth = 2;
+                for (let i = 1; i < driftTrail.length; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(driftTrail[i-1].x, driftTrail[i-1].y);
+                    ctx.lineTo(driftTrail[i].x, driftTrail[i].y);
+                    ctx.strokeStyle = driftTrail[i].color;
+                    ctx.stroke();
+                }
+            }
+
+            if (warningPoint) {
+                ctx.fillStyle = '#EAB308';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('预警触发点', warningPoint.x + 10, warningPoint.y - 10);
+                ctx.beginPath();
+                ctx.arc(warningPoint.x, warningPoint.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (severePoint) {
+                ctx.fillStyle = 'var(--anomaly)';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('前5%异常点', severePoint.x + 10, severePoint.y - 10);
+                ctx.beginPath();
+                ctx.arc(severePoint.x, severePoint.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (driftPoint) {
+                ctx.beginPath();
+                ctx.arc(driftPoint.x, driftPoint.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = driftPoint.color;
+                ctx.fill();
+                ctx.strokeStyle = '#1E293B';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(driftPoint.x, driftPoint.y, 14 + Math.sin(Date.now()/150)*4, 0, Math.PI * 2);
+                ctx.strokeStyle = driftPoint.color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#1E293B';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('实时传感', driftPoint.x, driftPoint.y - 22);
+            }
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('水温 / pH (X轴)', 580, 580);
+            ctx.textAlign = 'left';
+            ctx.fillText('溶氧量 (Y轴)', 20, 30);
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (myInterval || driftTimer) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (600 / rect.width);
+            const y = (e.clientY - rect.top) * (600 / rect.height);
+
+            let closest = null;
+            let minDist = Infinity;
+            points.forEach(p => {
+                let d = Math.hypot(p.x - x, p.y - y);
+                if (d < minDist) { minDist = d; closest = p; }
+            });
+
+            if (minDist < 25) {
+                targetPoint = closest;
+                bounds = { minX: 0, maxX: 600, minY: 0, maxY: 600 };
+                cuts = [];
+                cutCount = 0;
+
+                document.getElementById('cutCountLabel').innerText = "切分深度: 0";
+                document.getElementById('btnStart').disabled = false;
+
+                const stats = document.getElementById('statsBox');
+                stats.className = "stats-box active";
+
+                let tName = targetPoint.type === 'anomaly' ? '<b style="color:#ef4444">边缘</b>' : '<b style="color:#22c55e">核心</b>';
+                document.getElementById('msg').innerHTML = `已锁定 ${tName} 区域的数据点。<br/>可开始切分。`;
+
+                draw();
+            }
+        });
+
+        function startCutting() {
+            if (!targetPoint) return;
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnReset').disabled = true;
+            document.getElementById('msg').innerHTML = "正在运行 100 棵随机树...";
+
+            myInterval = setInterval(() => {
+                makeNextCut();
+            }, 300);
+        }
+
+        function makeNextCut() {
+            let ptsInBounds = points.filter(p =>
+                p.x >= bounds.minX && p.x <= bounds.maxX &&
+                p.y >= bounds.minY && p.y <= bounds.maxY
+            );
+
+            if (ptsInBounds.length <= 1) {
+                clearInterval(myInterval);
+                finishSim(true);
+                return;
+            }
+
+            let axis = Math.random() < 0.5 ? 'x' : 'y';
+
+            let vals = ptsInBounds.map(p => p[axis]);
+            let minVal = Math.min(...vals);
+            let maxVal = Math.max(...vals);
+
+            if (maxVal - minVal < 1e-4) {
+                axis = axis === 'x' ? 'y' : 'x';
+                vals = ptsInBounds.map(p => p[axis]);
+                minVal = Math.min(...vals);
+                maxVal = Math.max(...vals);
+            }
+
+            if (maxVal - minVal < 1e-4) {
+                clearInterval(myInterval);
+                finishSim(false);
+                return;
+            }
+
+            let split = minVal + Math.random() * (maxVal - minVal);
+
+            let newCut = {};
+            if (axis === 'x') {
+                newCut = { x1: split, y1: bounds.minY, x2: split, y2: bounds.maxY };
+                if (targetPoint.x < split) {
+                    bounds.maxX = split;
+                } else {
+                    bounds.minX = split;
+                }
+            } else {
+                newCut = { x1: bounds.minX, y1: split, x2: bounds.maxX, y2: split };
+                if (targetPoint.y < split) {
+                    bounds.maxY = split;
+                } else {
+                    bounds.minY = split;
+                }
+            }
+
+            cuts.push(newCut);
+            cutCount++;
+            document.getElementById('cutCountLabel').innerText = `切分深度: ${cutCount}`;
+            draw();
+        }
+
+        function finishSim(success) {
+            document.getElementById('btnReset').disabled = false;
+            myInterval = null;
+
+            const stats = document.getElementById('statsBox');
+            const msgEl = document.getElementById('msg');
+
+            if (targetPoint.type === 'anomaly') {
+                stats.className = "stats-box result-anomaly";
+                msgEl.innerHTML = `分离完成。平均深度极浅。<br/>点位处于稀疏区，判定为<b>异常数据</b>。`;
+            } else {
+                stats.className = "stats-box result-normal";
+                msgEl.innerHTML = `分离完成。平均深度极深。<br/>点位深处密集区，判定为<b>正常数据</b>。`;
+            }
+        }
+
+        function resetSim() {
+            clearInterval(myInterval);
+            clearInterval(driftTimer);
+            myInterval = null;
+            driftTimer = null;
+            targetPoint = null;
+            driftPoint = null;
+            driftTrail = [];
+            warningPoint = null;
+            severePoint = null;
+            bounds = { minX: 0, maxX: 600, minY: 0, maxY: 600 };
+            cuts = [];
+            cutCount = 0;
+
+            document.getElementById('cutCountLabel').innerText = "切分深度: 0";
+            document.getElementById('msg').innerHTML = "等待选择目标点";
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnLive').disabled = false;
+            document.getElementById('statsBox').className = "stats-box";
+
+            document.getElementById('liveStatus').innerText = '当前状态: 等待演示';
+            document.getElementById('liveStatus').style.color = 'var(--text-sub)';
+            document.getElementById('liveScore').innerText = '0.00';
+            document.getElementById('scoreBar').style.width = '0%';
+            document.getElementById('scoreBar').style.background = 'var(--primary)';
+
+            initData();
+            draw();
+        }
+
+        function startLiveSim() {
+            resetSim();
+            document.getElementById('btnLive').disabled = true;
+            document.getElementById('btnStart').disabled = true;
+
+            driftPoint = { x: 300, y: 300, color: 'var(--normal)' };
+
+            let targetX = 80;
+            let targetY = 150;
+            let progress = 0;
+
+            driftTimer = setInterval(() => {
+                progress += 0.005;
+                if (progress >= 1) {
+                    clearInterval(driftTimer);
+                    document.getElementById('btnLive').disabled = false;
+                    return;
+                }
+
+                driftPoint.x = 300 + (targetX - 300) * progress + (Math.random()-0.5)*12;
+                driftPoint.y = 300 + (targetY - 300) * progress + (Math.random()-0.5)*12;
+
+                // 【修改点】：调用 100 棵树进行模拟计算
+                let avgCuts = simulateCutsForPoint(driftPoint.x, driftPoint.y, 100);
+
+                // 根据 100 棵树的切分深度转化为 0-100 的得分，越容易被孤立得分越高
+                let rawScore = (13 - avgCuts) * (100 / 8);
+                let finalScore = Math.max(0, Math.min(100, rawScore));
+
+                document.getElementById('liveScore').innerText = (finalScore/100).toFixed(2);
+                document.getElementById('scoreBar').style.width = finalScore + '%';
+
+                let statusEl = document.getElementById('liveStatus');
+                let scoreBar = document.getElementById('scoreBar');
+
+                // 【修改点】：判定逻辑严格对齐 0.05 污染率 (得分 >= 95 触发)
+                if (finalScore < 75) {
+                    driftPoint.color = 'var(--normal)';
+                    statusEl.innerText = '当前状态: 正常';
+                    statusEl.style.color = 'var(--normal)';
+                    scoreBar.style.background = 'var(--normal)';
+                } else if (finalScore < 95) {
+                    if (!warningPoint) warningPoint = { x: driftPoint.x, y: driftPoint.y };
+                    driftPoint.color = '#EAB308';
+                    statusEl.innerText = '当前状态: 指标恶化 (关注期)';
+                    statusEl.style.color = '#EAB308';
+                    scoreBar.style.background = '#EAB308';
+                } else {
+                    if (!severePoint) severePoint = { x: driftPoint.x, y: driftPoint.y };
+                    driftPoint.color = 'var(--anomaly)';
+                    statusEl.innerText = '当前状态: 触达 5% 污染率线 (严重警报)';
+                    statusEl.style.color = 'var(--anomaly)';
+                    scoreBar.style.background = 'var(--anomaly)';
+                }
+
+                driftTrail.push({x: driftPoint.x, y: driftPoint.y, color: driftPoint.color});
+
+                draw();
+            }, 50);
+        }
+
+        initData();
+        draw();
+    </script>
+</body>
+</html>
